@@ -1,39 +1,64 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-function varre_diretorios() {
+#######################################################################################
+# Conversor de encoding de iso-8859-1 para utf-8
+#
+# Uso:
+# converter todos os arquivos java do diretório atual:
+# $ ./conversor.sh java
+#
+# converter todos os arquivos CSS de um diretório específico:
+# $ ./conversor.sh css /tmp/files
+#
+# converter todos os arquivos typescript recursivamente:
+# $ ./conversor.sh ts .
+#######################################################################################
 
-    local diretorio_origem="$1"                                           # primeiro parametro informado na hora que chamar o script
+# Extensão a ser convertida (obrigatória)
+EXTENSION="$1"
 
-    prefixo_bkp="_bkp"
+# Diretório raiz (opcional, default: diretório atual)
+ROOT_DIR="${2:-.}"
 
-    for dir in "$1"/*; do
-        if [ -f "$dir" ]; then                                            # se for arquivo
-            extensao_arquivo=$(echo $dir | cut -d"." -f2)                 # extensao
-            if [ "$extensao_arquivo" == "TXT" ]; then
-                nome_arquivo_backup=${dir}${prefixo_bkp}
-                iconv -f iso-8859-1 -t utf-8 $dir > $nome_arquivo_backup  # converte o encoding
-                mv $nome_arquivo_backup $dir
-                #sed -i '/<meta http-equiv=\"Content\-Type\" content=\"text\/html\; charset\=iso\-8859\-1\">/d' $dir
-                echo "${dir}"                                             # log
-            fi
-        fi
-        if [ -d "$dir" ]; then                                            # se for um diretorio
-            cd "$dir"
-            varre_diretorios "$dir"                                       # recursividade
-        fi
-        cd ..
-    done
+# Validação do argumento obrigatório
+if [ -z "$EXTENSION" ]; then
+  echo "Uso: $0 <extensao> [diretorio]"
+  echo "Exemplo: $0 java /caminho/do/projeto"
+  exit 1
+fi
+
+# Verifica dependência
+command -v iconv >/dev/null 2>&1 || {
+  echo "Erro: iconv não está instalado."
+  exit 1
 }
 
+echo "Extensão: .$EXTENSION"
+echo "Diretório: $ROOT_DIR"
+echo "Conversão: ISO-8859-1 -> UTF-8"
+echo "Backup: prefixo bkp_"
+echo
 
-echo "=================================================="
-echo "File encoding converter"
-echo "Author: Manoel Lima <manoelsslima@yahoo.com.br>"
-echo "=================================================="
-echo ""
-echo ""
-echo "Arquivos modificados:"
-echo ""
-echo ""
+find "$ROOT_DIR" -type f -name "*.${EXTENSION}" | while IFS= read -r file; do
+  dir="$(dirname "$file")"
+  base="$(basename "$file")"
+  backup="$dir/bkp_$base"
+  tmp="$(mktemp)"
 
-varre_diretorios $1
+  # Cria backup apenas uma vez
+  if [ ! -f "$backup" ]; then
+    cp "$file" "$backup"
+  fi
+
+  # Converte encoding
+  if iconv -f ISO-8859-1 -t UTF-8 "$file" -o "$tmp"; then
+    mv "$tmp" "$file"
+    echo "✔ Convertido: $file"
+  else
+    echo "✖ Erro ao converter: $file"
+    rm -f "$tmp"
+  fi
+done
+
+echo
+echo "Processo finalizado."
